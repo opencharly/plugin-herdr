@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Session targeting mirrors the herdr agent skill's safety boundary as code:
@@ -67,7 +68,10 @@ func resolveTarget(o targetOpts) (sessionTarget, error) {
 		}, nil
 	}
 	if o.Endpoint != "" {
-		return sessionTarget{Dial: "tcp://" + o.Endpoint, Kind: "tcp", Addr: o.Endpoint, Source: "endpoint"}, nil
+		// Accept both "host:port" and "tcp://host:port" spellings (the bed and
+		// docs use the prefixed form; a bare host:port is the wire convention).
+		ep := strings.TrimPrefix(o.Endpoint, "tcp://")
+		return sessionTarget{Dial: "tcp://" + ep, Kind: "tcp", Addr: ep, Source: "endpoint"}, nil
 	}
 	if p := os.Getenv("HERDR_SOCKET_PATH"); p != "" {
 		// An explicit socket path is a deliberate external target (a named
