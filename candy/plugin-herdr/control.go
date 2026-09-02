@@ -459,10 +459,22 @@ func (e *engine) agentWait(ctx context.Context, target, until string, timeoutMs 
 	if timeoutMs > 0 {
 		params["timeout_ms"] = uint64(timeoutMs)
 	}
-	if _, _, err := e.client.call(ctx, "agent.wait", params); err != nil {
+	raw, arm, err := e.client.call(ctx, "agent.wait", params)
+	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("agent %s reached %s\n", target, or(until, "a settled state")), nil
+	// The wait_matched arm carries the EventEnvelope that satisfied the wait;
+	// decoding through waitMatchedResult turns the response into an assertion
+	// (the arm type + the event shape) rather than a discarded reply.
+	res, err := decodeResult[waitMatchedResult](raw, "wait_matched", arm)
+	if err != nil {
+		return "", err
+	}
+	var evt struct {
+		Kind string `json:"event"`
+	}
+	_ = json.Unmarshal(res.Event, &evt)
+	return fmt.Sprintf("agent %s reached %s (event %s)\n", target, or(until, "a settled state"), or(evt.Kind, "agent_status")), nil
 }
 
 func (e *engine) agentPrompt(ctx context.Context, target, text string, wait bool, timeoutMs int64) (string, error) {
