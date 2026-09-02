@@ -123,6 +123,11 @@ func (f *fakeHerdr) respond(method string, params json.RawMessage) map[string]an
 			"type": "tab_list",
 			"tabs": []any{map[string]any{"tab_id": "w1:t1", "workspace_id": "w1", "number": 1, "label": "1", "focused": true, "pane_count": 1, "agent_status": "idle"}},
 		}
+	case "pane.current":
+		return map[string]any{
+			"type": "pane_current",
+			"pane": map[string]any{"pane_id": "w1:p1", "terminal_id": "term1", "workspace_id": "w1", "tab_id": "w1:t1", "focused": true, "agent_status": "unknown"},
+		}
 	case "pane.list":
 		return map[string]any{
 			"type":  "pane_list",
