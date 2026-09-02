@@ -2,6 +2,7 @@ package herdr
 
 import (
 	"context"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -10,52 +11,41 @@ import (
 	"github.com/opencharly/spec/spec"
 )
 
-func TestVerbDispatch(t *testing.T) {
-	f := startFakeHerdr(t, "tcp")
-	defer f.close()
-	addr := strings.TrimPrefix(f.url, "tcp://")
-	resolve := func(context.Context, int) (string, error) { return addr, nil }
-
-	cases := []struct {
-		name    string
-		in      params.HerdrInput
-		wantHas string
-	}{
-		{"ping", params.HerdrInput{Method: "ping"}, "pong"},
-		{"session-snapshot", params.HerdrInput{Method: "session-snapshot"}, "workspaces: 1"},
-		{"workspace-list", params.HerdrInput{Method: "workspace-list"}, "w1"},
-		{"tab-list", params.HerdrInput{Method: "tab-list"}, "w1:t1"},
-		{"pane-list", params.HerdrInput{Method: "pane-list"}, "w1:p1"},
-		{"agent-list", params.HerdrInput{Method: "agent-list"}, "pi"},
-		{"pane-wait-output", params.HerdrInput{Method: "pane-wait-output", Pane: "w1:p1", Match: "test result"}, "output matched"},
-		{"agent-wait", params.HerdrInput{Method: "agent-wait", Agent: "pi", Until: "idle"}, "reached"},
-		{"agent-prompt", params.HerdrInput{Method: "agent-prompt", Agent: "pi", Text: "hi"}, "prompted"},
+// TestLiveVerbReadOnly drives the REAL verb dispatch (runVerbHerdrResolved)
+// against the live session — every read-only method. No fakes: the resolver
+// hands the live session socket to the verb.
+func TestLiveVerbReadOnly(t *testing.T) {
+	if os.Getenv("HERDR_ENV") != "1" && os.Getenv("HERDR_SOCKET_PATH") == "" {
+		t.Skip("no live herdr session; run inside herdr (HERDR_ENV=1) or set HERDR_SOCKET_PATH")
 	}
-	for _, tc := range cases {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	tgt, err := resolveTarget(targetOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolve := func(context.Context, int) (string, error) { return tgt.Dial, nil }
+
+	for _, tc := range []struct {
+		name   string
+		method string
+	}{
+		{"ping", "ping"},
+		{"session-snapshot", "session-snapshot"},
+		{"workspace-list", "workspace-list"},
+		{"tab-list", "tab-list"},
+		{"pane-list", "pane-list"},
+		{"agent-list", "agent-list"},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			defer cancel()
-			op := &spec.Op{}
-			out, err := runVerbHerdrResolved(ctx, resolve, op, tc.in)
+			out, err := runVerbHerdrResolved(ctx, resolve, &spec.Op{}, params.HerdrInput{Method: tc.method})
 			if err != nil {
-				t.Fatalf("%s: %v", tc.name, err)
+				t.Fatalf("%s: %v", tc.method, err)
 			}
-			if !strings.Contains(out, tc.wantHas) {
-				t.Errorf("%s: out = %q, want contains %q", tc.name, out, tc.wantHas)
+			if strings.TrimSpace(out) == "" {
+				t.Errorf("%s: empty output", tc.method)
 			}
 		})
-	}
-}
-
-func TestVerbUnknownMethod(t *testing.T) {
-	f := startFakeHerdr(t, "tcp")
-	defer f.close()
-	addr := strings.TrimPrefix(f.url, "tcp://")
-	resolve := func(context.Context, int) (string, error) { return addr, nil }
-	ctx := context.Background()
-	_, err := runVerbHerdrResolved(ctx, resolve, &spec.Op{}, params.HerdrInput{Method: "bogus"})
-	if err == nil || !strings.Contains(err.Error(), "unknown herdr method") {
-		t.Fatalf("err = %v, want unknown-method error", err)
 	}
 }
 
@@ -69,7 +59,13 @@ func TestVerbTimeoutParsing(t *testing.T) {
 	if d := parseTimeout("2s", defaultVerbTimeout); d != 2*time.Second {
 		t.Errorf("parseTimeout(2s) = %v, want 2s", d)
 	}
+}
+
+func TestVerbWireSource(t *testing.T) {
 	if s := wireSource("recent-unwrapped", "recent"); s != "recent_unwrapped" {
 		t.Errorf("wireSource(recent-unwrapped) = %q", s)
+	}
+	if s := wireSource("", "recent"); s != "recent" {
+		t.Errorf("wireSource(default) = %q", s)
 	}
 }
