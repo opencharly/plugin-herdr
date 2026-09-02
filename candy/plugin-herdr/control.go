@@ -373,6 +373,26 @@ func (e *engine) paneWaitOutput(ctx context.Context, paneID, match, regex, sourc
 	if match == "" && regex == "" {
 		return "", fmt.Errorf("pane wait-output needs --match <text> or --regex <pattern>")
 	}
+	// pane.wait_for_output REQUIRES pane_id on the wire (schema). When the
+	// caller omits it (the `herdr: pane-wait-output` bed sugar), resolve the
+	// server's focused pane first via pane.current — the herdr CLI's own
+	// "target omitted = active focused pane" contract, made wire-correct.
+	if paneID == "" {
+		raw, arm, err := e.client.call(ctx, "pane.current", struct{}{})
+		if err != nil {
+			return "", err
+		}
+		cur, err := decodeResult[struct {
+			Pane paneInfo `json:"pane"`
+		}](raw, "pane_current", arm)
+		if err != nil {
+			return "", err
+		}
+		paneID = cur.Pane.PaneID
+		if paneID == "" {
+			return "", fmt.Errorf("no focused pane in the venue for pane-wait-output")
+		}
+	}
 	m := map[string]string{}
 	if match != "" {
 		m = map[string]string{"type": "substring", "value": match}
@@ -383,9 +403,8 @@ func (e *engine) paneWaitOutput(ctx context.Context, paneID, match, regex, sourc
 		"source": wireSource(source, "recent"),
 		"match":  m, "timeout_ms": uint64(timeoutMs),
 	}
-	if paneID != "" {
-		params["pane_id"] = paneID
-	}
+	params["pane_id"] = paneID
+
 	raw, arm, err := e.client.call(ctx, "pane.wait_for_output", params)
 	if err != nil {
 		return "", err

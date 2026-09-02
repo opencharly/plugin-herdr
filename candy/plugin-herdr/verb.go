@@ -35,7 +35,8 @@ func runVerbHerdr(ctx context.Context, cc kit.CheckContext, op *spec.Op, in para
 }
 
 // runVerbHerdrResolved is the dispatch with the venue-endpoint resolution
-// injected, so unit tests can point the verb at a local fake herdr server.
+// injected, so both the provider and the live tests point the verb at the
+// venue address the resolver returns.
 func runVerbHerdrResolved(ctx context.Context, resolve func(context.Context, int) (string, error), op *spec.Op, in params.HerdrInput) (string, error) {
 	addr, err := resolve(ctx, herdrVenuePort)
 	if err != nil {
@@ -44,7 +45,10 @@ func runVerbHerdrResolved(ctx context.Context, resolve func(context.Context, int
 	if addr == "" {
 		return "", fmt.Errorf("no live herdr venue for the herdr verb (box-mode or no socket bridge)")
 	}
-	eng := &engine{client: newNDJSONClient("tcp://" + addr), target: sessionTarget{Dial: "tcp://" + addr, Kind: "tcp", Addr: addr, Source: "venue-bridge"}}
+	// addr is the venue bridge as the resolver returns it: bare host:port
+	// (tcp implied) from cc.ResolveEndpoint, or an explicit unix:// / tcp://
+	// target from live tests and direct use.
+	eng := &engine{client: newNDJSONClient(addr), target: sessionTarget{Dial: addr, Kind: "tcp", Addr: addr, Source: "venue-bridge"}}
 
 	timeoutMs := int64(parseTimeout(op.Timeout, defaultVerbTimeout).Milliseconds())
 	switch in.Method {
