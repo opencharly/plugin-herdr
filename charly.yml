@@ -1,46 +1,8 @@
 version: 2026.240.1943
-# Makes this plugin repo a PROJECT so its own candy is actually gated: without a root
-# charly.yml the repo is "project-less", `charly box validate` exits 0 on ANY manifest,
-# and the stock candy CI step asserts nothing (opencharly/charly#459). The plugin candy +
-# the herdr skill entity are declared below; the bed lives in opencharly/pod-herdr.
-plugin-herdr:
-    candy:
-        version: 2026.245.1000
-        description: |-
-            The ‘charly herdr’ CLI for a Herdr terminal-multiplexer session (herdr.dev)
-            PLUS the declarative `herdr:` check verb — a command:herdr +
-            verb:herdr plugin (compiled into charly via compiled_plugins, and
-            serving out-of-process from this repo before that wiring lands). ‘charly herdr status’ pings the target and summarizes
-            workspaces/tabs/panes/agents; workspace/tab/pane helpers list, create, split,
-            run commands, read output, and wait for matching output; agent helpers list,
-            get, wait, prompt, and report lifecycle state. The `herdr:` check verb is the
-            declarative venue-probe counterpart: authored as a `check:` step
-            (`herdr: ping`, `workspace-list`, `pane-wait-output`, …), it resolves the
-            in-venue herdr socket-bridge port to a host-routable address over the reverse
-            channel and probes with the SAME NDJSON socket client the command uses (R3 —
-            one protocol surface covers the CLI and every bed). No upstream herdr binary is
-            needed: the plugin speaks the herdr socket API directly (newline-delimited JSON
-            over the session socket; `herdr api schema --json` is the contract). Session
-            targeting honors the herdr agent-skill safety boundary: the focused session is
-            off-limits from outside unless HERDR_ENV=1, --focused, or an explicit
-            --session/--endpoint target is given.
-        plugin:
-            providers:
-                - command:herdr
-                - verb:herdr
-            source: github.com/opencharly/plugin-herdr/candy/plugin-herdr
-        plan:
-            - # ADE check: a deterministic build-context check that does NOT depend on a live
-              # herdr venue the CLI needs. Mirrors plugin-agentteams / plugin-example-command —
-              # a build-context `command` check running `true`. The full CLI end-to-end
-              # (`charly herdr status` / `pane run` / `pane wait-output` against a live
-              # session) is exercised by the Go e2e (fake-socket wire tests + TestLiveReadOnly)
-              # and the live R10 bed roster (the check-herdr-pod host steps).
-              check: the command:herdr + verb:herdr plugin ships a buildable Go module the host compiles into charly and the herdr command tree dispatches; the live herdr surface is exercised by the Go tests + the check-herdr-pod bed
-              id: herdr-module-present
-              context:
-                - build
-              command: "true"
+# Makes this plugin repo a PROJECT so its own candy is actually gated (opencharly/charly#459).
+discover:
+    - path: candy
+      recursive: true
 herdr-skill:
     skill:
         name: herdr

@@ -11,8 +11,11 @@ Herdr NDJSON socket API directly (no upstream `herdr` binary needed).
   `workspace-list`, `tab-list`, `pane-list`, `agent-list`, `pane-wait-output`,
   `agent-wait`, `agent-prompt`.
 
-Both placements (compiled into charly via `compiled_plugins:`, or out-of-process via the
-`cmd/serve` gRPC shim) run the SAME Go core — one NDJSON protocol surface, R3.
+The plugin is an OUT-OF-TREE external plugin: projects compose it via the
+`@github.com/opencharly/plugin-herdr/candy/plugin-herdr:<ref>` candy ref and charly
+connects it OUT-OF-PROCESS by word at runtime (the `herdr:` verb + `charly herdr`
+CLI both dispatch through the `cmd/serve` gRPC shim) — zero charly-module import,
+per the kernel/plugin boundary law. The same Go core serves both placements (R3).
 
 ## Session targeting and the focused-session boundary
 

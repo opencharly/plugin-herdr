@@ -380,8 +380,11 @@ func (e *engine) paneWaitOutput(ctx context.Context, paneID, match, regex, sourc
 		m = map[string]string{"type": "regex", "value": regex}
 	}
 	params := map[string]any{
-		"pane_id": paneID, "source": wireSource(source, "recent"),
-		"match": m, "timeout_ms": uint64(timeoutMs),
+		"source": wireSource(source, "recent"),
+		"match":  m, "timeout_ms": uint64(timeoutMs),
+	}
+	if paneID != "" {
+		params["pane_id"] = paneID
 	}
 	raw, arm, err := e.client.call(ctx, "pane.wait_for_output", params)
 	if err != nil {
