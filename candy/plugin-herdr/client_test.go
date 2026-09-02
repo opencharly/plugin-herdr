@@ -16,10 +16,18 @@ import (
 // plugin's tests exercise. It pins the wire contract: request
 // {"id","method","params"} → response {"id", "result": {arm}}, matched by id.
 type fakeHerdr struct {
-	ln    net.Listener
-	url   string
-	mu    sync.Mutex
-	calls []string
+	ln     net.Listener
+	url    string
+	mu     sync.Mutex
+	calls  []string
+	params []string
+}
+
+func (f *fakeHerdr) record(method string, params json.RawMessage) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, method)
+	f.params = append(f.params, string(params))
 }
 
 func startFakeHerdr(t *testing.T, network string) *fakeHerdr {
@@ -48,11 +56,6 @@ func startFakeHerdr(t *testing.T, network string) *fakeHerdr {
 
 func (f *fakeHerdr) close() { f.ln.Close() }
 
-func (f *fakeHerdr) record(method string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.calls = append(f.calls, method)
-}
 
 func (f *fakeHerdr) serve() {
 	for {
@@ -77,7 +80,7 @@ func (f *fakeHerdr) handle(conn net.Conn) {
 		if err := dec.Decode(&req); err != nil {
 			return
 		}
-		f.record(req.Method)
+		f.record(req.Method, req.Params)
 		result := f.respond(req.Method, req.Params)
 		if result == nil {
 			result = map[string]any{"type": "ok"}
@@ -267,6 +270,72 @@ func TestClientArmTypeTolerant(t *testing.T) {
 	}
 	if pong.Version != "0.8.2" {
 		t.Errorf("pong = %+v", pong)
+	}
+}
+
+// TestPaneWaitOutputFocusedResolution pins the focused-pane default (B12): an
+// empty paneID must resolve pane.current FIRST and then wait with the resolved id.
+func TestPaneWaitOutputFocusedResolution(t *testing.T) {
+	f := startFakeHerdr(t, "unix")
+	defer f.close()
+	eng, err := newTestEngine(f.url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := eng.paneWaitOutput(context.Background(), "", "test result", "", "recent", 5000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "output matched") {
+		t.Errorf("out = %q", out)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.calls) < 2 || f.calls[0] != "pane.current" || f.calls[1] != "pane.wait_for_output" {
+		t.Fatalf("calls = %v, want pane.current then pane.wait_for_output", f.calls)
+	}
+	if len(f.params) < 2 || !strings.Contains(f.params[1], "\"pane_id\":\"w1:p1\"") {
+		t.Fatalf("wait params = %v, want the resolved pane_id on the wire", f.params)
+	}
+}
+
+// TestPaneWaitOutputNoFocusedPane: a venue with no focused pane must error clearly.
+func TestPaneWaitOutputNoFocusedPane(t *testing.T) {
+	dir := t.TempDir()
+	sock := filepath.Join(dir, "nofocus.sock")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		dec := json.NewDecoder(conn)
+		enc := json.NewEncoder(conn)
+		for {
+			var req struct {
+				ID     string          `json:"id"`
+				Method string          `json:"method"`
+				Params json.RawMessage `json:"params"`
+			}
+			if err := dec.Decode(&req); err != nil {
+				return
+			}
+			if req.Method == "pane.current" {
+				_ = enc.Encode(map[string]any{"id": req.ID, "result": map[string]any{"type": "pane_current", "pane": map[string]any{}}})
+			} else {
+				_ = enc.Encode(map[string]any{"id": req.ID, "result": map[string]any{"type": "ok"}})
+			}
+		}
+	}()
+	eng := &engine{client: newNDJSONClient("unix://" + sock), target: sessionTarget{Dial: "unix://" + sock}}
+	_, err = eng.paneWaitOutput(context.Background(), "", "marker", "", "recent", 5000)
+	if err == nil || !strings.Contains(err.Error(), "no focused pane") {
+		t.Fatalf("err = %v, want no-focused-pane error", err)
 	}
 }
 
