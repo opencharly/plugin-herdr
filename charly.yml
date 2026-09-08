@@ -1,4 +1,4 @@
-version: 2026.240.1943
+version: 2026.249.2125
 # Makes this plugin repo a PROJECT so its own candy is actually gated (opencharly/charly#459).
 discover:
     - path: candy
