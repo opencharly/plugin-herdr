@@ -1,6 +1,5 @@
 plugin-herdr:
     candy:
-        version: 2026.245.1000
         description: |-
             The ‘charly herdr’ CLI for a Herdr terminal-multiplexer session (herdr.dev)
             PLUS the declarative `herdr:` check verb — a command:herdr +
