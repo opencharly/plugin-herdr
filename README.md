@@ -1,26 +1,32 @@
 # plugin-herdr
 
-The “herdr” plugin candy for [opencharly/charly](https://github.com/opencharly/charly): a
-`command:herdr` CLI plus the declarative `herdr:` check verb, speaking the
-Herdr NDJSON socket API directly (no upstream `herdr` binary needed).
+The `herdr` plugin for [opencharly/charly](https://github.com/opencharly/charly) —
+a `charly herdr` CLI plus the declarative `herdr:` check verb for a
+[Herdr](https://herdr.dev) terminal-multiplexer session. The plugin speaks the
+herdr NDJSON socket API directly: no upstream `herdr` binary, no SDK.
 
-- `charly herdr` — inspect and control a Herdr session: `status`, `session snapshot`,
-  `workspace list|create`, `tab list|create`, `pane list|split|run|read|send-text|send-keys|wait-output`,
-  `agent list|get|wait|prompt|report`, `config`.
-- `herdr:` — the declarative check verb for beds: `ping`, `session-snapshot`,
-  `workspace-list`, `tab-list`, `pane-list`, `agent-list`, `pane-wait-output`,
-  `agent-wait`, `agent-prompt`.
+## What it provides
 
-The plugin is an OUT-OF-TREE external plugin: projects compose it via the
-`@github.com/opencharly/plugin-herdr/candy/plugin-herdr:<ref>` candy ref and charly
-connects it OUT-OF-PROCESS by word at runtime (the `herdr:` verb + `charly herdr`
-CLI both dispatch through the `cmd/serve` gRPC shim) — zero charly-module import,
-per the kernel/plugin boundary law. The same Go core serves both placements (R3).
+| Capability | Surface |
+|---|---|
+| `command:herdr` | the `charly herdr` CLI — inspect and control a Herdr session |
+| `verb:herdr` | the declarative `herdr:` check step any candy or box can bake into its plan |
+
+## The command
+
+`charly herdr status` pings the target and summarizes
+workspaces/tabs/panes/agents. The command tree:
+
+- `charly herdr status` / `charly herdr config` — ping, and show the resolved target.
+- `charly herdr session snapshot` — the live session snapshot (JSON).
+- `charly herdr workspace list|create`, `tab list|create`, `pane list|split|run|read|send-text|send-keys|wait-output`.
+- `charly herdr agent list|get|wait|prompt|report`.
 
 ## Session targeting and the focused-session boundary
 
-The focused Herdr session is OFF-LIMITS unless you are inside Herdr (`HERDR_ENV=1` — you run in
-a herdr pane), you say `--focused` explicitly, or you target another session explicitly:
+The focused Herdr session is OFF-LIMITS unless you are inside Herdr
+(`HERDR_ENV=1` — you run in a herdr pane), you say `--focused` explicitly, or you
+target another session explicitly:
 
 | Target | Resolution |
 |---|---|
@@ -30,9 +36,35 @@ a herdr pane), you say `--focused` explicitly, or you target another session exp
 | `HERDR_ENV=1` | the current (own) session socket |
 | `--focused` | the focused session, explicitly |
 
-`charly herdr` with no target outside herdr errors with guidance instead of touching the
-focused session — the herdr agent-skill safety rule as code. Never `server.stop` an active
-session; use named test sessions (`--session name`) for experiments.
+`charly herdr` with no target outside herdr errors with guidance instead of
+touching the focused session. Never `server.stop` an active session; use named
+test sessions (`--session name`) for experiments.
+
+## The verb
+
+An authored `herdr: <method>` step resolves the in-venue herdr socket-bridge
+port to a host-routable address over the reverse channel and probes with the SAME
+NDJSON client the command uses. Methods: `ping`, `session-snapshot`,
+`workspace-list`, `tab-list`, `pane-list`, `agent-list`, `pane-wait-output`,
+`agent-wait`, `agent-prompt`. The verb skips under `charly check box` (no live
+venue on a disposable `podman run --rm`).
+
+```yaml
+- check: the herdr pane prints the marker
+  herdr:
+      method: pane-wait-output
+      pane: w1:p1
+      match: herdr-marker
+  context: [runtime]
+```
+
+## How to use it
+
+Compose the plugin candy in a box or check bed's `candy:` list:
+
+```yaml
+- '@github.com/opencharly/plugin-herdr/candy/plugin-herdr:<tag>'
+```
 
 ## Example
 
@@ -45,18 +77,20 @@ charly herdr --session spike pane wait-output w1:p2 --match herdr-marker
 charly herdr --session spike agent list
 ```
 
-## Building / testing
+## Layout
 
-```bash
-cd candy/plugin-herdr
-go build ./... && go test ./...
-# live smoke test against your own herdr session (read-only):
-go test -run TestLiveReadOnly -v .
-```
+- `candy/plugin-herdr/` — the plugin module: `plugin.go`, `command.go`,
+  `control.go`, `client.go`, `session.go`, `verb.go`, `params/cue_types_gen.go`,
+  `schema/herdr.cue`, `cmd/serve/main.go`.
+- `candy/plugin-herdr/charly.yml` — the `plugin-herdr:` candy entity.
+- `charly.yml` — the root project manifest (`discover: candy`) plus the embedded
+  `herdr-skill:` skill entity.
+- `.github/workflows/tag-on-merge.yml` — CalVer tag + `CHANGELOG/` on merge.
 
-The wire contract is documented by the herdr API schema (`herdr api schema --json`, protocol
-20) and pinned by the fake-socket tests (`client_test.go`).
+## Related
 
-The Go module lives at `candy/plugin-herdr/` with module path
-`github.com/opencharly/plugin-herdr/candy/plugin-herdr`; the charly resolver fetches this repo
-at the pinned tag and the compiled-in wiring imports the module at that path.
+- Owning skill: `/charly-automation:herdr` (projected from the embedded
+  `herdr-skill:` entity).
+- `/charly-automation:herdr-box` — the herdr stack box + `check-herdr-pod` bed.
+- `/charly-internals:plugin` — the plugin/provider model.
+- [`opencharly/charly`](https://github.com/opencharly/charly) — the charly CLI.
