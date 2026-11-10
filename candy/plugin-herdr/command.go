@@ -257,7 +257,7 @@ type PaneWaitOutputCmd struct {
 	Pane    string `arg:"" name:"pane" help:"Pane ID"`
 	Match   string `name:"match" help:"Match a literal substring"`
 	Regex   string `name:"regex" help:"Match a Rust regular expression"`
-	Source  string `name:"source" default:"recent" help:"Terminal snapshot source (visible, recent, recent-unwrapped)"`
+	Source  string `name:"source" default:"recent" help:"Terminal snapshot source (visible, recent, recent-unwrapped, detection)"`
 	Timeout int64  `name:"timeout-ms" default:"120000" help:"Fail after this many milliseconds"`
 }
 
