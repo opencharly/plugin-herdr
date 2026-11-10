@@ -7,6 +7,12 @@ package params
 type HerdrInput struct {
 	// method — the herdr verb method name (the verb's PRIMARY input field, so
 	// `herdr: ping` desugars to {method: "ping"}).
+	//
+	// S3: the words are rows of the `_method` table at the foot of `schema/herdr.cue`, and
+	// the enum this field accepts is derived from that table's word list, so the catalog
+	// has ONE home — a new method is one row there, and the table, the derived list and
+	// the enum cannot disagree. (This comment reaches ../params/cue_types_gen.go verbatim,
+	// which is why it names the file instead of saying "this file".)
 	Method string `json:"method"`
 
 	// workspace — workspace ID filter for tab-list / pane-list.

@@ -10,7 +10,7 @@ require (
 require gopkg.in/yaml.v3 v3.0.1 // indirect
 
 require (
-	cuelang.org/go v0.16.1 // indirect
+	cuelang.org/go v0.16.1
 	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
 	github.com/emicklei/proto v1.14.3 // indirect
 	github.com/fatih/color v1.15.0 // indirect
